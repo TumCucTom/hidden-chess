@@ -109,12 +109,22 @@ src/
   game/
     state.ts         # top-level state machine (menu → setup → play → over)
     useGame.ts       # React hook wiring the clock + computer opponent
-  components/        # UI: Menu, SetupView, PlayView, HandoffView, GameOverView, Piece…
-  styles/index.css   # the chess.com-inspired theme
+  components/         # UI: Menu, SetupView, PlayView, HandoffView, GameOverView, Piece…
+  assets/pieces/      # bundled Cburnett SVG piece set (see CREDITS.md)
+  styles/index.css    # the chess.com-inspired theme
 ```
 
 The engine has no UI dependencies, so the rules can be tested (and reused) in isolation.
 
+## Credits
+
+Piece art is the open-source **Cburnett** Staunton set by Colin M. L. Burnett
+(triple-licensed GPLv2+/GFDL/BSD, via [Lichess](https://github.com/lichess-org/lila)),
+bundled locally so the app is fully self-contained. chess.com's own "neo" pieces are
+proprietary and can't be redistributed, so this open set provides the same polished,
+real-chess look. Swap in any set by replacing the SVGs in `src/assets/pieces/`. See
+[`src/assets/pieces/CREDITS.md`](src/assets/pieces/CREDITS.md).
+
 ## License
 
-MIT — do what you like.
+MIT for the code. Bundled piece art keeps its own license (see Credits).
