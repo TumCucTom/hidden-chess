@@ -13,6 +13,7 @@ import {
   isSquareAttacked,
 } from './moves';
 import { inferBelief, typesForMove, sampleAssignment, type Belief } from './belief';
+import { evaluateSetup, smartPlacement } from './ai';
 
 let passed = 0;
 function assert(cond: boolean, msg: string) {
@@ -223,6 +224,29 @@ function fresh(board = emptyBoard(), turn: 'w' | 'b' = 'w'): PlayState {
   const assign = sampleAssignment(belief);
   assert(assign.get(10) === 'n', 'a forced piece gets its only possible type');
   assert(assign.get(11) === 'n' || assign.get(11) === 'b', 'a flexible piece gets an allowed type');
+}
+
+// --- Setup heuristic + smart placement -------------------------------------
+{
+  // Identical armies except the king: A tucks it to the g-wing, B leaves it
+  // central. Everything else (bishop pair, knights) is held equal.
+  const wing: Record<number, PieceType> = {
+    [idx(0, 0)]: 'r', [idx(1, 0)]: 'q', [idx(2, 0)]: 'b', [idx(3, 0)]: 'n',
+    [idx(4, 0)]: 'n', [idx(5, 0)]: 'b', [idx(6, 0)]: 'k', [idx(7, 0)]: 'r',
+  };
+  const central: Record<number, PieceType> = {
+    [idx(0, 0)]: 'r', [idx(1, 0)]: 'q', [idx(2, 0)]: 'b', [idx(3, 0)]: 'n',
+    [idx(4, 0)]: 'k', [idx(5, 0)]: 'b', [idx(6, 0)]: 'n', [idx(7, 0)]: 'r',
+  };
+  assert(
+    evaluateSetup(wing, 'w', '960') > evaluateSetup(central, 'w', '960'),
+    'setup heuristic prefers a king tucked to the wing',
+  );
+
+  assert(validatePlacement('w', '960', smartPlacement('w', '960', 12)) === null,
+    'smartPlacement (960) yields a legal army');
+  assert(validatePlacement('b', 'full', smartPlacement('b', 'full', 12)) === null,
+    'smartPlacement (full) yields a legal army');
 }
 
 console.log(`\n  ✓ all ${passed} engine assertions passed\n`);

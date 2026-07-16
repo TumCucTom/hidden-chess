@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef } from 'react';
 import { reducer, initialState, type GameState, type Action } from './state';
-import { chooseHiddenMove } from '../engine/ai';
+import { chooseHiddenMove, DIFFICULTY } from '../engine/ai';
 
 // ---------------------------------------------------------------------------
 // Wraps the reducer with the two time-driven concerns:
@@ -42,8 +42,10 @@ export function useGame(): [GameState, React.Dispatch<Action>] {
     const delay = 350 + Math.floor(Math.random() * 450);
     const id = window.setTimeout(() => {
       // The bot plays without seeing opponent piece types — it reasons over a
-      // belief about what they could be (see chooseHiddenMove).
-      const move = chooseHiddenMove(state.play!, state.config!.variant);
+      // belief about what they could be (see chooseHiddenMove). Strength scales
+      // with the chosen difficulty.
+      const { samples, depth } = DIFFICULTY[state.config!.difficulty];
+      const move = chooseHiddenMove(state.play!, state.config!.variant, { samples, depth });
       thinkingRef.current = false;
       if (move) dispatch({ type: 'MOVE', move });
     }, delay);

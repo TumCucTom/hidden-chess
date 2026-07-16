@@ -1,5 +1,6 @@
 import type {
   Color,
+  Difficulty,
   GameResult,
   Mode,
   Move,
@@ -14,7 +15,7 @@ import {
   checkTermination,
   isInsufficientMaterial,
 } from '../engine/moves';
-import { randomPlacement, reseed } from '../engine/ai';
+import { randomPlacement, smartPlacement, reseed, DIFFICULTY } from '../engine/ai';
 
 // ---------------------------------------------------------------------------
 // Top-level game state machine. Phases:
@@ -31,6 +32,8 @@ export interface GameConfig {
   time: TimeControl;
   /** In computer mode, the colour the human plays. Ignored in pass mode. */
   humanColor: Color;
+  /** Computer strength. Only meaningful in computer mode. */
+  difficulty: Difficulty;
 }
 
 export type Phase = 'menu' | 'setup' | 'handoff' | 'play' | 'over';
@@ -118,7 +121,7 @@ function initSetupFields(config: GameConfig, gameId: number): GameState {
   let setupColor: Color = 'w';
   if (config.mode === 'computer') {
     const bot = other(config.humanColor);
-    placements[bot] = randomPlacement(bot, config.variant);
+    placements[bot] = smartPlacement(bot, config.variant, DIFFICULTY[config.difficulty].setupCandidates);
     setupDone[bot] = true;
     setupColor = config.humanColor;
   }

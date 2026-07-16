@@ -288,33 +288,38 @@ export function allLegalMoves(state: PlayState): Move[] {
 }
 
 /**
- * Apply a legal move and return the next PlayState, annotating check/mate.
- * `move` should be one produced by `legalMoves` (for the right target/promotion).
+ * Apply a move and return the next PlayState WITHOUT touching history or
+ * computing check/mate annotations. This is the lean path used by the search
+ * (thousands of nodes), where history/annotations are never read.
  */
-export function makeMove(state: PlayState, move: Move): PlayState {
+export function applyMoveToState(state: PlayState, move: Move): PlayState {
   const board = applyMoveToBoard(state.board, move);
-  const nextTurn = opposite(state.turn);
-
   const enPassant = move.isDouble
     ? idx(fileOf(move.from), (rankOf(move.from) + rankOf(move.to)) / 2)
     : null;
-
   const isCapture = move.captured != null;
   const isPawnMove = move.piece === 'p';
-  const halfmoveClock = isCapture || isPawnMove ? 0 : state.halfmoveClock + 1;
-  const fullmove = state.turn === 'b' ? state.fullmove + 1 : state.fullmove;
-
-  const givesCheck = isInCheck(board, nextTurn);
-  const nextState: PlayState = {
+  return {
     board,
-    turn: nextTurn,
+    turn: opposite(state.turn),
     enPassant,
-    halfmoveClock,
-    fullmove,
+    halfmoveClock: isCapture || isPawnMove ? 0 : state.halfmoveClock + 1,
+    fullmove: state.turn === 'b' ? state.fullmove + 1 : state.fullmove,
+    history: state.history, // shared reference; never mutated during search
+  };
+}
+
+/**
+ * Apply a legal move and return the next PlayState, appending it to history and
+ * annotating check/mate. Used for real game moves (not the search).
+ */
+export function makeMove(state: PlayState, move: Move): PlayState {
+  const base = applyMoveToState(state, move);
+  const givesCheck = isInCheck(base.board, base.turn);
+  const nextState: PlayState = {
+    ...base,
     history: [...state.history, { ...move, givesCheck }],
   };
-
-  // Determine mate for annotation only (cheap enough at casual scale).
   if (givesCheck && allLegalMoves(nextState).length === 0) {
     nextState.history[nextState.history.length - 1].givesMate = true;
   }

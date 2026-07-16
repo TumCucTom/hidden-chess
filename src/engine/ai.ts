@@ -1,7 +1,14 @@
-import type { Color, Move, PieceType, PlayState, Variant } from './types';
-import { placementSquares, armyFor, fileOf, rankOf } from './board';
-import { allLegalMoves, makeMove, isInCheck, pseudoMoves } from './moves';
+import type { Color, Difficulty, Move, PieceType, PlayState, Variant } from './types';
+import { placementSquares, armyFor, fileOf, rankOf, fixedPawnSquares } from './board';
+import { allLegalMoves, applyMoveToState, isInCheck, pseudoMoves } from './moves';
 import { inferBelief, sampleAssignment } from './belief';
+
+/** Per-difficulty knobs: search breadth/depth and setup effort. */
+export const DIFFICULTY: Record<Difficulty, { samples: number; depth: number; setupCandidates: number }> = {
+  casual: { samples: 3, depth: 2, setupCandidates: 1 },
+  balanced: { samples: 8, depth: 2, setupCandidates: 16 },
+  sharp: { samples: 14, depth: 3, setupCandidates: 48 },
+};
 
 // ---------------------------------------------------------------------------
 // The computer opponent.
@@ -66,7 +73,7 @@ function negamax(state: PlayState, depth: number, alpha: number, beta: number): 
 
   let best = -Infinity;
   for (const move of orderMoves(moves)) {
-    const child = makeMove(state, move);
+    const child = applyMoveToState(state, move);
     const score = -negamax(child, depth - 1, -beta, -alpha);
     if (score > best) best = score;
     if (best > alpha) alpha = best;
@@ -86,7 +93,7 @@ export function chooseMove(state: PlayState, depth = 2): Move | null {
   let bestMove = moves[0];
   let bestScore = -Infinity;
   for (let i = 0; i < moves.length; i++) {
-    const child = makeMove(state, moves[i]);
+    const child = applyMoveToState(state, moves[i]);
     // Negate: child is the opponent's node. Tiny per-index jitter breaks ties
     // so the bot doesn't always pick the first of several equal moves.
     const score = -negamax(child, depth - 1, -Infinity, Infinity) + (i % 5) * 0.001;
@@ -142,7 +149,7 @@ export function chooseHiddenMove(
         (x) => x.to === m.to && (x.promotion ?? null) === (m.promotion ?? null),
       );
       if (!wm) continue;
-      const child = makeMove(worldState, wm);
+      const child = applyMoveToState(worldState, wm);
       if (isInCheck(child.board, bot)) {
         sums[r] += REFUTED; // illegal / king-losing in this world
       } else {
@@ -217,4 +224,78 @@ export function randomPlacement(color: Color, variant: Variant): Record<number, 
   back.forEach((sq, i) => (placement[sq] = nonPawns[i]));
   front.forEach((sq, i) => (placement[sq] = pawns[i]));
   return placement;
+}
+
+/**
+ * Heuristic score for a finished army design (higher is better): rewards a
+ * tucked-away, pawn-shielded king and the bishop pair on opposite colours;
+ * penalises knights on the rim and doubled pawns.
+ */
+export function evaluateSetup(
+  placement: Record<number, PieceType>,
+  color: Color,
+  variant: Variant,
+): number {
+  // Concrete piece list, including the fixed 2nd-rank pawns in 960 mode.
+  const pieces: Array<{ sq: number; type: PieceType }> = [];
+  for (const [sq, type] of Object.entries(placement)) pieces.push({ sq: Number(sq), type });
+  if (variant === '960') for (const sq of fixedPawnSquares(color)) pieces.push({ sq, type: 'p' });
+
+  const pawnPerFile = new Map<number, number>();
+  const bishopColors = new Set<number>();
+  let score = 0;
+  let kingSq = -1;
+
+  for (const { sq, type } of pieces) {
+    if (type === 'k') kingSq = sq;
+    if (type === 'b') bishopColors.add((fileOf(sq) + rankOf(sq)) % 2);
+    if (type === 'n' && (fileOf(sq) === 0 || fileOf(sq) === 7)) score -= 6; // knight on the rim
+    if (type === 'p') pawnPerFile.set(fileOf(sq), (pawnPerFile.get(fileOf(sq)) ?? 0) + 1);
+  }
+
+  for (const count of pawnPerFile.values()) if (count > 1) score -= 8 * (count - 1); // doubled pawns
+  if (bishopColors.size === 2) score += 12; // bishop pair covers both colours
+
+  if (kingSq >= 0) {
+    const kf = fileOf(kingSq);
+    const kBack = rankTowardEnemy(color, kingSq);
+    score += kBack === 0 ? 30 : kBack === 1 ? 5 : -20 * kBack; // keep the king home
+    score += kf <= 1 || kf >= 6 ? 15 : kf >= 3 && kf <= 4 ? -12 : 0; // tuck it to a wing
+    // Pawn shield: own pawns on the three squares one rank ahead of the king.
+    const fwd = color === 'w' ? 1 : -1;
+    const kr = rankOf(kingSq);
+    let shield = 0;
+    for (const df of [-1, 0, 1]) {
+      const f = kf + df;
+      const r = kr + fwd;
+      if (f < 0 || f > 7 || r < 0 || r > 7) continue;
+      const p = pieces.find((x) => x.sq === f + r * 8);
+      if (p && p.type === 'p') shield += 1;
+    }
+    score += shield * 12;
+  }
+
+  return score;
+}
+
+/**
+ * Best-of-N army design: sample `candidates` random placements and keep the one
+ * the setup heuristic likes most. N scales with difficulty (1 = pure random).
+ */
+export function smartPlacement(
+  color: Color,
+  variant: Variant,
+  candidates = 16,
+): Record<number, PieceType> {
+  let best = randomPlacement(color, variant);
+  let bestScore = evaluateSetup(best, color, variant);
+  for (let i = 1; i < candidates; i++) {
+    const cand = randomPlacement(color, variant);
+    const s = evaluateSetup(cand, color, variant);
+    if (s > bestScore) {
+      bestScore = s;
+      best = cand;
+    }
+  }
+  return best;
 }

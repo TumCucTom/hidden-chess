@@ -1,6 +1,12 @@
 import { useState } from 'react';
-import type { Color, Mode, TimeControl, Variant } from '../engine/types';
+import type { Color, Difficulty, Mode, TimeControl, Variant } from '../engine/types';
 import type { GameConfig } from '../game/state';
+
+const DIFFICULTIES: Array<{ id: Difficulty; label: string; blurb: string }> = [
+  { id: 'casual', label: 'Casual', blurb: 'Quick, easily bluffed' },
+  { id: 'balanced', label: 'Balanced', blurb: 'A fair fight' },
+  { id: 'sharp', label: 'Sharp', blurb: 'Deeper, harder to fool' },
+];
 
 // ---------------------------------------------------------------------------
 // Home screen: choose mode, setup style (variant), and time control, then
@@ -43,6 +49,7 @@ interface MenuProps {
 export function Menu({ onStart }: MenuProps) {
   const [mode, setMode] = useState<Mode>('computer');
   const [humanColor, setHumanColor] = useState<Color | 'random'>('w');
+  const [difficulty, setDifficulty] = useState<Difficulty>('balanced');
   const [variant, setVariant] = useState<Variant>('960');
   const [tc, setTc] = useState<TimeControl>(PRESETS[3].tc);
   const [customOpen, setCustomOpen] = useState(false);
@@ -57,7 +64,7 @@ export function Menu({ onStart }: MenuProps) {
     humanColor === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : humanColor;
 
   const start = () => {
-    onStart({ mode, variant, time: activeTc, humanColor: resolvedColor });
+    onStart({ mode, variant, time: activeTc, humanColor: resolvedColor, difficulty });
   };
 
   return (
@@ -85,20 +92,37 @@ export function Menu({ onStart }: MenuProps) {
           </OptionButton>
         </div>
         {mode === 'computer' && (
-          <div className="subrow">
-            <span className="subrow-label">You play</span>
-            <div className="pill-row">
-              {(['w', 'b', 'random'] as const).map((c) => (
-                <button
-                  key={c}
-                  className={`pill ${humanColor === c ? 'active' : ''}`}
-                  onClick={() => setHumanColor(c)}
-                >
-                  {c === 'w' ? 'White' : c === 'b' ? 'Black' : 'Random'}
-                </button>
-              ))}
+          <>
+            <div className="subrow">
+              <span className="subrow-label">You play</span>
+              <div className="pill-row">
+                {(['w', 'b', 'random'] as const).map((c) => (
+                  <button
+                    key={c}
+                    className={`pill ${humanColor === c ? 'active' : ''}`}
+                    onClick={() => setHumanColor(c)}
+                  >
+                    {c === 'w' ? 'White' : c === 'b' ? 'Black' : 'Random'}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+            <div className="subrow">
+              <span className="subrow-label">Difficulty</span>
+              <div className="pill-row">
+                {DIFFICULTIES.map((d) => (
+                  <button
+                    key={d.id}
+                    className={`pill ${difficulty === d.id ? 'active' : ''}`}
+                    onClick={() => setDifficulty(d.id)}
+                    title={d.blurb}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
       </section>
 

@@ -53,6 +53,9 @@ export type Variant = '960' | 'full';
 
 export type Mode = 'pass' | 'computer';
 
+/** Computer strength (search breadth/depth + setup effort). */
+export type Difficulty = 'casual' | 'balanced' | 'sharp';
+
 /** A full time control: setup minutes | play minutes | increment seconds. */
 export interface TimeControl {
   setupMinutes: number;

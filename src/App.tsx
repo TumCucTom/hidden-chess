@@ -29,6 +29,11 @@ export default function App() {
         </button>
         <div className="appbar-meta">
           <span className="tag">{modeName}</span>
+          {state.config.mode === 'computer' && (
+            <span className="tag">
+              {state.config.difficulty[0].toUpperCase() + state.config.difficulty.slice(1)}
+            </span>
+          )}
           <span className="tag">{variantName}</span>
           <span className="tag mono">{formatTC(state.config.time)}</span>
         </div>
