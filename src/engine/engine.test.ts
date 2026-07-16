@@ -12,6 +12,7 @@ import {
   checkTermination,
   isSquareAttacked,
 } from './moves';
+import { inferBelief, typesForMove, sampleAssignment, type Belief } from './belief';
 
 let passed = 0;
 function assert(cond: boolean, msg: string) {
@@ -154,6 +155,74 @@ function fresh(board = emptyBoard(), turn: 'w' | 'b' = 'w'): PlayState {
   const st = fresh(board, 'w');
   assert(allLegalMoves(st).length > 0, 'assembled 960 board has legal moves');
   assert(!isSquareAttacked(board, idx(4, 3), 'b'), 'empty central square not attacked at start');
+}
+
+// --- Belief: movement geometry -> possible types ---------------------------
+{
+  const sortJoin = (a: PieceType[]) => a.slice().sort().join('');
+  assert(sortJoin(typesForMove(1, 2, false, 'w')) === 'n', 'knight jump => knight only');
+  assert(sortJoin(typesForMove(2, 2, false, 'w')) === 'bq', '2-square diagonal => bishop/queen');
+  const capFwd = typesForMove(1, 1, true, 'w'); // white forward-diagonal capture
+  assert(
+    capFwd.includes('p') && capFwd.includes('b') && capFwd.includes('q') && capFwd.includes('k'),
+    'forward diagonal capture allows pawn, bishop, queen, king',
+  );
+  assert(!typesForMove(1, -1, true, 'w').includes('p'), 'backward diagonal is never a (white) pawn');
+  const push = typesForMove(0, 2, false, 'w');
+  assert(push.includes('p') && push.includes('r') && push.includes('q') && !push.includes('k'),
+    'double push => pawn/rook/queen, not king');
+}
+
+// --- Belief: a rook bluffing as a knight is read by its moves ---------------
+{
+  const b = emptyBoard();
+  b[idx(2, 5)] = makePiece('b', 'r'); // true type is a rook…
+  const st: PlayState = {
+    board: b, turn: 'w', enPassant: null, halfmoveClock: 0, fullmove: 1,
+    // …but it reached c6 from b8 — a knight's move.
+    history: [{ from: idx(1, 7), to: idx(2, 5), piece: 'n', color: 'b', captured: null }],
+  };
+  const belief = inferBelief(st, 'b', 'full');
+  const pc = belief.pieces.find((p) => p.square === idx(2, 5))!;
+  assert(pc.allowed.length === 1 && pc.allowed[0] === 'n', 'inference uses moves, not true type');
+}
+
+// --- Belief: 960 pawn prior ------------------------------------------------
+{
+  const b = emptyBoard();
+  b[idx(0, 6)] = makePiece('b', 'p'); // a7 — black's 2nd rank => must be a pawn
+  b[idx(0, 7)] = makePiece('b', 'q'); // a8 — back rank => never a pawn
+  const st: PlayState = { board: b, turn: 'w', enPassant: null, halfmoveClock: 0, fullmove: 1, history: [] };
+  const belief = inferBelief(st, 'b', '960');
+  const a7 = belief.pieces.find((p) => p.square === idx(0, 6))!;
+  const a8 = belief.pieces.find((p) => p.square === idx(0, 7))!;
+  assert(a7.allowed.length === 1 && a7.allowed[0] === 'p', '960: 2nd-rank starter is a pawn');
+  assert(!a8.allowed.includes('p'), '960: back-rank starter is not a pawn');
+}
+
+// --- Belief: captures shrink the remaining army ----------------------------
+{
+  const st: PlayState = {
+    board: emptyBoard(), turn: 'w', enPassant: null, halfmoveClock: 0, fullmove: 1,
+    history: [{ from: idx(3, 3), to: idx(4, 4), piece: 'r', color: 'w', captured: 'q', capturedId: 'x', capturedSquare: idx(4, 4) }],
+  };
+  const belief = inferBelief(st, 'b', 'full');
+  assert(belief.counts.q === 0, 'capturing a hidden queen removes it from the army');
+  assert(belief.counts.n === 2, 'uncaptured types keep full count');
+}
+
+// --- Belief: determinization respects constraints --------------------------
+{
+  const belief: Belief = {
+    pieces: [
+      { square: 10, allowed: ['n'] },
+      { square: 11, allowed: ['n', 'b'] },
+    ],
+    counts: { k: 0, q: 0, r: 0, b: 1, n: 2, p: 0 },
+  };
+  const assign = sampleAssignment(belief);
+  assert(assign.get(10) === 'n', 'a forced piece gets its only possible type');
+  assert(assign.get(11) === 'n' || assign.get(11) === 'b', 'a flexible piece gets an allowed type');
 }
 
 console.log(`\n  ✓ all ${passed} engine assertions passed\n`);

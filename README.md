@@ -62,8 +62,11 @@ can start.
 
 ## Game modes
 
-- **vs Computer** — play solo against a built-in bot (choose your colour). The bot designs
-  a hidden setup and plays with a shallow search.
+- **vs Computer** — play solo against a built-in bot (choose your colour). The bot plays
+  *blind*, exactly like you: it can't see your piece types, so it infers what each of your
+  pieces could be from how they've moved, then plays the move that holds up best across
+  those possibilities (a determinized Monte-Carlo search). That means it respects a threat
+  that *might* exist — and can be bluffed.
 - **Pass & Play** — two players share one device. A privacy "pass the device" screen
   hides each player's secret information during handoffs, and the board flips to the
   player on move.
@@ -104,7 +107,8 @@ src/
     types.ts         # core types + coordinate system
     board.ts         # board helpers, setup construction & validation
     moves.ts         # move generation, check/checkmate, en passant, promotion
-    ai.ts            # computer opponent (negamax) + random setup
+    belief.ts        # opponent belief model (infer hidden piece identities)
+    ai.ts            # computer opponent — plays blind via determinized search
     engine.test.ts   # assertion-based smoke tests
   game/
     state.ts         # top-level state machine (menu → setup → play → over)

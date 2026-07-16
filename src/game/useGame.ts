@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef } from 'react';
 import { reducer, initialState, type GameState, type Action } from './state';
-import { chooseMove } from '../engine/ai';
+import { chooseHiddenMove } from '../engine/ai';
 
 // ---------------------------------------------------------------------------
 // Wraps the reducer with the two time-driven concerns:
@@ -41,7 +41,9 @@ export function useGame(): [GameState, React.Dispatch<Action>] {
     // A brief, human-ish pause before moving.
     const delay = 350 + Math.floor(Math.random() * 450);
     const id = window.setTimeout(() => {
-      const move = chooseMove(state.play!, 2);
+      // The bot plays without seeing opponent piece types — it reasons over a
+      // belief about what they could be (see chooseHiddenMove).
+      const move = chooseHiddenMove(state.play!, state.config!.variant);
       thinkingRef.current = false;
       if (move) dispatch({ type: 'MOVE', move });
     }, delay);

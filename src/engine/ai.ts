@@ -1,14 +1,20 @@
 import type { Color, Move, PieceType, PlayState, Variant } from './types';
 import { placementSquares, armyFor, fileOf, rankOf } from './board';
-import { allLegalMoves, makeMove, isInCheck } from './moves';
+import { allLegalMoves, makeMove, isInCheck, pseudoMoves } from './moves';
+import { inferBelief, sampleAssignment } from './belief';
 
 // ---------------------------------------------------------------------------
-// A lightweight computer opponent: random-but-sensible setup, and a shallow
-// negamax search with material + light positional evaluation for play.
+// The computer opponent.
 //
-// The bot reads the true board (it isn't playing "blind"); this keeps it a
-// reasonable casual sparring partner. A human still has the information edge
-// of designing a setup whose intent the bot can't read.
+//  * randomPlacement    — a random-but-sensible army design.
+//  * chooseMove         — perfect-information negamax (material + light
+//                         positional eval). Used by the tests and as the search
+//                         core below.
+//  * chooseHiddenMove   — how the bot actually plays: it does NOT see opponent
+//                         piece types. It infers a belief about them (see
+//                         belief.ts), samples plausible "worlds", and plays the
+//                         move that scores best on average — so it can be
+//                         bluffed, just like a human.
 // ---------------------------------------------------------------------------
 
 const VALUE: Record<PieceType, number> = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
@@ -69,7 +75,10 @@ function negamax(state: PlayState, depth: number, alpha: number, beta: number): 
   return best;
 }
 
-/** Choose a move for the side to move. depth ~2 keeps it snappy. */
+/**
+ * Perfect-information move choice (reads the true board). Kept for tests and as
+ * the search core reused by the hidden-information bot below.
+ */
 export function chooseMove(state: PlayState, depth = 2): Move | null {
   const moves = orderMoves(allLegalMoves(state));
   if (moves.length === 0) return null;
@@ -84,6 +93,71 @@ export function chooseMove(state: PlayState, depth = 2): Move | null {
     if (score > bestScore) {
       bestScore = score;
       bestMove = moves[i];
+    }
+  }
+  return bestMove;
+}
+
+const other = (c: Color): Color => (c === 'w' ? 'b' : 'w');
+
+// A move that walks the bot's own king into check *in a sampled world* is
+// heavily penalised — that's how the bot learns to fear a piece that might be
+// more dangerous than it has let on (a rook posing as a king, say).
+const REFUTED = -100000;
+
+/**
+ * Hidden Chess move choice — the bot plays without seeing opponent piece types.
+ *
+ * It infers what each opponent piece could be, samples several concrete
+ * "determinized" worlds consistent with that belief, and scores every legal
+ * move by its average outcome across those worlds (Perfect-Information Monte
+ * Carlo). A move that leaves the king in check in some plausible world is
+ * penalised in proportion to how many worlds refute it — so the bot respects
+ * threats that *might* exist, and can be genuinely bluffed.
+ */
+export function chooseHiddenMove(
+  state: PlayState,
+  variant: Variant,
+  { depth = 2, samples = 8 }: { depth?: number; samples?: number } = {},
+): Move | null {
+  const bot = state.turn;
+  const hidden = other(bot);
+  const roots = orderMoves(allLegalMoves(state));
+  if (roots.length === 0) return null;
+
+  const belief = inferBelief(state, hidden, variant);
+  const sums = new Array(roots.length).fill(0);
+
+  for (let s = 0; s < samples; s++) {
+    const assign = sampleAssignment(belief);
+    const worldBoard = state.board.map((p, i) =>
+      p && p.color === hidden ? { ...p, type: assign.get(i) ?? p.type } : p,
+    );
+    const worldState: PlayState = { ...state, board: worldBoard };
+
+    for (let r = 0; r < roots.length; r++) {
+      const m = roots[r];
+      // Rebuild the move against this world (capture target/type may differ).
+      const wm = pseudoMoves(worldState, m.from).find(
+        (x) => x.to === m.to && (x.promotion ?? null) === (m.promotion ?? null),
+      );
+      if (!wm) continue;
+      const child = makeMove(worldState, wm);
+      if (isInCheck(child.board, bot)) {
+        sums[r] += REFUTED; // illegal / king-losing in this world
+      } else {
+        sums[r] += -negamax(child, depth - 1, -Infinity, Infinity);
+      }
+    }
+  }
+
+  let bestMove = roots[0];
+  let bestScore = -Infinity;
+  for (let r = 0; r < roots.length; r++) {
+    const score = sums[r] + (r % 5) * 0.001; // tie-break jitter
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = roots[r];
     }
   }
   return bestMove;
