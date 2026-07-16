@@ -49,27 +49,36 @@ export function Piece({ color, type, hidden }: PieceProps) {
   );
 }
 
-/** The opponent's unrevealed piece: a coloured disc with a question mark. */
+/**
+ * The opponent's unrevealed piece: a domed, beveled medallion with an embossed
+ * "?" — the visual heart of Hidden Chess. Rendered as a self-contained SVG
+ * (gradient ids are namespaced per colour so many can coexist on one board).
+ */
 export function HiddenPiece({ color }: { color: Color }) {
-  const light = color === 'w';
-  const bg = light ? '#efeae0' : '#3a3733';
-  const ring = light ? '#c3b9a6' : '#615c54';
-  const q = light ? '#8a7f6c' : '#b8b0a2';
+  const w = color === 'w';
+  const id = w ? 'hpW' : 'hpB';
+  const s = w
+    ? { g0: '#fdfbf6', g1: '#ece4d4', g2: '#d3c9b6', ring: '#bfb49f',
+        bevel: 'rgba(255,255,255,.7)', q: '#8b8474', qShadow: 'rgba(255,255,255,.75)' }
+    : { g0: '#5c574f', g1: '#34302b', g2: '#201e1b', ring: '#17140f',
+        bevel: 'rgba(255,255,255,.16)', q: '#cdc5b6', qShadow: 'rgba(0,0,0,.5)' };
+  const qFont = { fontSize: 20, fontWeight: 800 as const, fontFamily: "Georgia, 'Times New Roman', serif" };
   return (
     <svg className="piece-svg hidden-piece" viewBox="0 0 45 45" role="img" aria-label="hidden piece">
-      <circle cx="22.5" cy="22.5" r="15" fill={bg} stroke={ring} strokeWidth="2.2" />
-      <text
-        x="22.5"
-        y="23"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="20"
-        fontWeight="800"
-        fill={q}
-        fontFamily="Georgia, 'Times New Roman', serif"
-      >
-        ?
-      </text>
+      <defs>
+        <radialGradient id={`${id}-fill`} cx="38%" cy="30%" r="80%">
+          <stop offset="0%" stopColor={s.g0} />
+          <stop offset="58%" stopColor={s.g1} />
+          <stop offset="100%" stopColor={s.g2} />
+        </radialGradient>
+      </defs>
+      {/* domed body + rim */}
+      <circle cx="22.5" cy="22.5" r="16.5" fill={`url(#${id}-fill)`} stroke={s.ring} strokeWidth="1.3" />
+      {/* inner bevel highlight */}
+      <circle cx="22.5" cy="22.5" r="13.6" fill="none" stroke={s.bevel} strokeWidth="1.1" />
+      {/* embossed "?" — offset shadow copy under the main glyph */}
+      <text x="22.5" y="24.1" textAnchor="middle" dominantBaseline="central" fill={s.qShadow} {...qFont}>?</text>
+      <text x="22.5" y="23.2" textAnchor="middle" dominantBaseline="central" fill={s.q} {...qFont}>?</text>
     </svg>
   );
 }
