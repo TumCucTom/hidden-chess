@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# local scratch / screenshots
+_shots*.mjs
+*.log
+
+# editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# not committed in this environment (pushed via MCP; CI uses npm install)
+package-lock.json
