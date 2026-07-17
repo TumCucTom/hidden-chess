@@ -31,8 +31,16 @@ const PRESETS: Preset[] = [
 ];
 
 export function formatTC(tc: TimeControl): string {
+  if (tc.unlimited) return '∞';
   return `${tc.setupMinutes} - ${tc.playMinutes} | ${tc.incrementSeconds}`;
 }
+
+const UNLIMITED_TC: TimeControl = {
+  setupMinutes: 0,
+  playMinutes: 0,
+  incrementSeconds: 0,
+  unlimited: true,
+};
 
 function sameTC(a: TimeControl, b: TimeControl): boolean {
   return (
@@ -53,13 +61,14 @@ export function Menu({ onStart }: MenuProps) {
   const [variant, setVariant] = useState<Variant>('960');
   const [tc, setTc] = useState<TimeControl>(PRESETS[3].tc);
   const [customOpen, setCustomOpen] = useState(false);
+  const [unlimited, setUnlimited] = useState(false);
   const [custom, setCustom] = useState<TimeControl>({
     setupMinutes: 2,
     playMinutes: 10,
     incrementSeconds: 5,
   });
 
-  const activeTc = customOpen ? custom : tc;
+  const activeTc = unlimited ? UNLIMITED_TC : customOpen ? custom : tc;
   const resolvedColor: Color =
     humanColor === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : humanColor;
 
@@ -150,10 +159,11 @@ export function Menu({ onStart }: MenuProps) {
           {PRESETS.map((p, i) => (
             <button
               key={i}
-              className={`tc-btn ${!customOpen && sameTC(tc, p.tc) ? 'active' : ''}`}
+              className={`tc-btn ${!customOpen && !unlimited && sameTC(tc, p.tc) ? 'active' : ''}`}
               onClick={() => {
                 setTc(p.tc);
                 setCustomOpen(false);
+                setUnlimited(false);
               }}
             >
               <span className="tc-group">{p.group}</span>
@@ -161,8 +171,21 @@ export function Menu({ onStart }: MenuProps) {
             </button>
           ))}
           <button
+            className={`tc-btn ${unlimited ? 'active' : ''}`}
+            onClick={() => {
+              setUnlimited(true);
+              setCustomOpen(false);
+            }}
+          >
+            <span className="tc-group">Unlimited</span>
+            <span className="tc-value">∞</span>
+          </button>
+          <button
             className={`tc-btn ${customOpen ? 'active' : ''}`}
-            onClick={() => setCustomOpen(true)}
+            onClick={() => {
+              setCustomOpen(true);
+              setUnlimited(false);
+            }}
           >
             <span className="tc-group">Custom</span>
             <span className="tc-value">{customOpen ? formatTC(custom) : 'Set…'}</span>

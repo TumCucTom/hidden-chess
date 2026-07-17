@@ -1,5 +1,6 @@
 /** Format milliseconds as a chess clock: M:SS, or S.d under 20 seconds. */
 export function formatClock(ms: number): string {
+  if (!Number.isFinite(ms)) return '∞';
   const clamped = Math.max(0, ms);
   const totalSeconds = clamped / 1000;
   if (clamped < 20_000) {

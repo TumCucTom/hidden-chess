@@ -114,7 +114,9 @@ function completePlacement(
 /** Build initial setup-phase fields for a fresh game with the given config. */
 function initSetupFields(config: GameConfig, gameId: number): GameState {
   reseed(0x1234abcd ^ (gameId * 2654435761));
-  const setupMs = config.time.setupMinutes * 60_000;
+  const unlimited = config.time.unlimited === true;
+  const setupMs = unlimited ? Infinity : config.time.setupMinutes * 60_000;
+  const playMs = unlimited ? Infinity : config.time.playMinutes * 60_000;
   const placements: Record<Color, Record<number, PieceType>> = { w: {}, b: {} };
   const setupDone: Record<Color, boolean> = { w: false, b: false };
 
@@ -134,10 +136,7 @@ function initSetupFields(config: GameConfig, gameId: number): GameState {
     setupClock: { w: setupMs, b: setupMs },
     setupDone,
     setupColor,
-    clock: {
-      w: config.time.playMinutes * 60_000,
-      b: config.time.playMinutes * 60_000,
-    },
+    clock: { w: playMs, b: playMs },
     gameId,
   };
 }
@@ -325,6 +324,8 @@ export function reducer(state: GameState, action: Action): GameState {
 
 /** Decrement the active clock by `elapsed` ms and handle flag-falls. */
 function tick(state: GameState, elapsed: number): GameState {
+  if (state.config?.time.unlimited) return state; // no clocks in unlimited mode
+
   if (state.phase === 'setup') {
     const color = state.setupColor;
     if (state.setupDone[color]) return state;

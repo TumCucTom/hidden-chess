@@ -61,6 +61,8 @@ export interface TimeControl {
   setupMinutes: number;
   playMinutes: number;
   incrementSeconds: number;
+  /** No clocks at all — take as long as you like, no flag-falls. */
+  unlimited?: boolean;
 }
 
 export interface PlayState {
