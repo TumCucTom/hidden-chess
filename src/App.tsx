@@ -66,7 +66,7 @@ export default function App() {
         {state.phase === 'over' && (
           <>
             <PlayView state={state} dispatch={dispatch} />
-            <GameOverView state={state} dispatch={dispatch} />
+            {state.reviewPly === null && <GameOverView state={state} dispatch={dispatch} />}
           </>
         )}
       </main>

@@ -1,4 +1,5 @@
 import type {
+  Board,
   Color,
   Difficulty,
   GameResult,
@@ -12,6 +13,7 @@ import type {
 import { assembleBoard, placementSquares, remainingPieces } from '../engine/board';
 import {
   makeMove,
+  applyMoveToState,
   checkTermination,
   isInsufficientMaterial,
 } from '../engine/moves';
@@ -59,6 +61,8 @@ export interface GameState {
   afterHandoff: 'setup' | 'play' | null;
 
   result: GameResult | null;
+  /** When reviewing a finished game, the half-move index being shown (else null). */
+  reviewPly: number | null;
   /** Bumps each game so effects (seeding etc.) can react to a new game. */
   gameId: number;
 }
@@ -78,6 +82,9 @@ export type Action =
   | { type: 'DRAW' }
   | { type: 'TICK'; elapsed: number }
   | { type: 'TOGGLE_HINTS' }
+  | { type: 'REVIEW_ENTER' }
+  | { type: 'REVIEW_GOTO'; ply: number }
+  | { type: 'REVIEW_EXIT' }
   | { type: 'NEW_GAME' }
   | { type: 'REMATCH' };
 
@@ -96,6 +103,7 @@ export const initialState: GameState = {
   handoffTo: null,
   afterHandoff: null,
   result: null,
+  reviewPly: null,
   gameId: 0,
 };
 
@@ -337,6 +345,20 @@ export function reducer(state: GameState, action: Action): GameState {
       if (!state.config) return state;
       return { ...state, config: { ...state.config, hints: !state.config.hints } };
 
+    case 'REVIEW_ENTER':
+      if (state.phase !== 'over' || !state.play) return state;
+      return { ...state, reviewPly: 0 }; // start the rewatch at the opening
+
+    case 'REVIEW_GOTO': {
+      if (state.phase !== 'over' || !state.play) return state;
+      const max = state.play.history.length;
+      const ply = Math.max(0, Math.min(max, action.ply));
+      return { ...state, reviewPly: ply };
+    }
+
+    case 'REVIEW_EXIT':
+      return { ...state, reviewPly: null };
+
     case 'NEW_GAME':
       return { ...initialState, gameId: state.gameId };
 
@@ -412,4 +434,27 @@ export function orientation(state: GameState): Color {
 /** True when the game reveals every piece (game over). */
 export function allRevealed(state: GameState): boolean {
   return state.phase === 'over';
+}
+
+/**
+ * Reconstruct the board after each half-move for replay: `boards[0]` is the
+ * starting position, `boards[k]` is the position after k moves. Built from the
+ * saved army placements plus the move history, so it's exact.
+ */
+export function replayBoards(state: GameState): Board[] {
+  if (!state.play || !state.config) return [];
+  let ps: PlayState = {
+    board: assembleBoard(state.config.variant, state.placements.w, state.placements.b),
+    turn: 'w',
+    enPassant: null,
+    halfmoveClock: 0,
+    fullmove: 1,
+    history: [],
+  };
+  const boards: Board[] = [ps.board];
+  for (const move of state.play.history) {
+    ps = applyMoveToState(ps, move);
+    boards.push(ps.board);
+  }
+  return boards;
 }

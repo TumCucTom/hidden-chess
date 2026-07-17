@@ -44,9 +44,12 @@ export function GameOverView({ state, dispatch }: GameOverViewProps) {
         {!won && <span className="draw-mark">½–½</span>}
         <h2>{title}</h2>
         <p>{sub}</p>
-        <p className="over-note">All pieces are now revealed on the board.</p>
+        <p className="over-note">All pieces are now revealed — watch the replay to see how it unfolded.</p>
         <div className="over-actions">
-          <button className="btn primary" onClick={() => dispatch({ type: 'REMATCH' })}>
+          <button className="btn primary" onClick={() => dispatch({ type: 'REVIEW_ENTER' })}>
+            ▶ Watch replay
+          </button>
+          <button className="btn" onClick={() => dispatch({ type: 'REMATCH' })}>
             Rematch
           </button>
           <button className="btn" onClick={() => dispatch({ type: 'NEW_GAME' })}>

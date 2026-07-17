@@ -418,7 +418,26 @@ button { font-family: inherit; cursor: pointer; }
 .move-row { display: grid; grid-template-columns: 34px 1fr 1fr; align-items: center; padding: 3px 6px; border-radius: 6px; font-variant-numeric: tabular-nums; }
 .move-row:nth-child(odd) { background: rgba(255,255,255,.02); }
 .move-num { color: var(--muted); font-size: 13px; }
-.move-cell { font-size: 13.5px; font-weight: 600; letter-spacing: .3px; }
+.move-cell { font-size: 13.5px; font-weight: 600; letter-spacing: .3px; padding: 1px 4px; }
+.move-cell.clickable { cursor: pointer; border-radius: 5px; }
+.move-cell.clickable:hover { background: rgba(255, 255, 255, .07); }
+.move-cell.current { background: rgba(129, 182, 76, .30); color: #fff; border-radius: 5px; }
+
+/* Replay control bar */
+.review-bar {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: var(--board-size); margin-top: 2px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.rev-btn {
+  min-width: 40px; height: 34px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; color: var(--text); font-size: 15px;
+}
+.rev-btn:hover:not(:disabled) { background: #34312d; border-color: #4c4842; }
+.rev-btn:disabled { opacity: .4; cursor: default; }
+.rev-btn.play { background: var(--green); color: #12260b; border-color: var(--green); }
+.rev-btn.play:hover { filter: brightness(1.06); }
+.review-count { margin-left: 8px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 54px; text-align: center; }
 
 .panel-controls { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
 .panel-controls .btn { flex: 1; padding: 10px 6px; }

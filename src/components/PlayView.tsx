@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Board, Color, Move, PieceType } from '../engine/types';
 import type { GameState, Action } from '../game/state';
-import { currentViewer, orientation, allRevealed } from '../game/state';
+import { currentViewer, orientation, allRevealed, replayBoards } from '../game/state';
 import { squareName } from '../engine/board';
 import { legalMoves, isInCheck, findKing } from '../engine/moves';
 import { inferBelief } from '../engine/belief';
@@ -11,7 +11,9 @@ import { formatClock } from './format';
 
 // ---------------------------------------------------------------------------
 // The play phase: the board, both clocks, move history, revealed captures,
-// and game controls. Opponent pieces render face-down until captured.
+// and game controls. Opponent pieces render face-down until captured. Once the
+// game is over it doubles as a replay viewer — step through every move with all
+// pieces revealed.
 // ---------------------------------------------------------------------------
 
 const PIECE_VALUE: Record<PieceType, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
@@ -30,6 +32,37 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
 
   const [selected, setSelected] = useState<number | null>(null);
   const [promo, setPromo] = useState<{ to: number; moves: Move[] } | null>(null);
+  const [autoplay, setAutoplay] = useState(false);
+
+  // --- Replay state ------------------------------------------------------
+  const reviewing = state.phase === 'over' && state.reviewPly !== null;
+  const totalPlies = play.history.length;
+  const reviewBoards = useMemo(
+    () => (reviewing ? replayBoards(state) : []),
+    [reviewing, state.gameId, totalPlies],
+  );
+  const ply = reviewing ? Math.min(state.reviewPly ?? totalPlies, totalPlies) : totalPlies;
+  const displayBoard = reviewing ? reviewBoards[ply] ?? play.board : play.board;
+  const displayTurn: Color = reviewing ? (ply % 2 === 0 ? 'w' : 'b') : play.turn;
+  const displayLastMove = reviewing
+    ? ply > 0
+      ? { from: play.history[ply - 1].from, to: play.history[ply - 1].to }
+      : null
+    : state.lastMove;
+
+  // Autoplay steps forward until the end, then stops.
+  useEffect(() => {
+    if (!reviewing || !autoplay) return;
+    if (ply >= totalPlies) {
+      setAutoplay(false);
+      return;
+    }
+    const id = window.setTimeout(() => dispatch({ type: 'REVIEW_GOTO', ply: ply + 1 }), 850);
+    return () => window.clearTimeout(id);
+  }, [reviewing, autoplay, ply, totalPlies, dispatch]);
+  useEffect(() => {
+    if (!reviewing) setAutoplay(false);
+  }, [reviewing]);
 
   const botColor: Color | null = config.mode === 'computer' ? (config.humanColor === 'w' ? 'b' : 'w') : null;
   const botThinking = botColor != null && play.turn === botColor && state.phase === 'play';
@@ -50,8 +83,8 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
   );
   const targetSquares = useMemo(() => new Map(targets.map((m) => [m.to, m])), [targets]);
 
-  const inCheck = isInCheck(play.board, play.turn);
-  const checkSquare = inCheck ? findKing(play.board, play.turn) : -1;
+  const inCheck = isInCheck(displayBoard, displayTurn);
+  const checkSquare = inCheck ? findKing(displayBoard, displayTurn) : -1;
 
   // Deduction hints: for each enemy piece that has moved, the types it could be.
   const opponent: Color = viewer === 'w' ? 'b' : 'w';
@@ -64,15 +97,12 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
     return m;
   }, [config.hints, revealed, play, opponent, config.variant]);
 
-  const resetSelection = () => {
-    setSelected(null);
-  };
+  const resetSelection = () => setSelected(null);
 
   const onSquareClick = (sq: number) => {
     if (!canInteract) return;
     const piece = play.board[sq];
 
-    // Clicking a legal destination for the selected piece.
     if (selected != null && targetSquares.has(sq)) {
       const matching = targets.filter((m) => m.to === sq);
       if (matching[0].promotion) {
@@ -84,12 +114,10 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
       return;
     }
 
-    // Selecting / reselecting one of the side-to-move's own pieces.
     if (piece && piece.color === play.turn) {
       setSelected(sq === selected ? null : sq);
       return;
     }
-
     resetSelection();
   };
 
@@ -103,7 +131,7 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
 
   const decoFor = (sq: number): SquareDeco => {
     const classes: string[] = [];
-    if (state.lastMove && (state.lastMove.from === sq || state.lastMove.to === sq)) {
+    if (displayLastMove && (displayLastMove.from === sq || displayLastMove.to === sq)) {
       classes.push('last-move');
     }
     if (sq === selected) classes.push('selected');
@@ -114,7 +142,7 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
   };
 
   const renderPiece = (sq: number) => {
-    const piece = play.board[sq];
+    const piece = displayBoard[sq];
     if (!piece) return null;
     const showReal = revealed || piece.color === viewer;
     if (showReal) return <Piece color={piece.color} type={piece.type} />;
@@ -127,18 +155,24 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
     );
   };
 
-  // Captured material (revealed). White's captures are black pieces, etc.
-  const captured = useMemo(() => collectCaptured(play.history), [play.history]);
-  const material = materialDiff(play.board);
+  // Captured material up to the shown position.
+  const shownHistory = reviewing ? play.history.slice(0, ply) : play.history;
+  const captured = useMemo(() => collectCaptured(shownHistory), [reviewing, ply, play.history]);
+  const material = materialDiff(displayBoard);
 
   const topColor = orient === 'w' ? 'b' : 'w';
   const bottomColor = orient;
+  const activeColor = reviewing ? displayTurn : play.turn;
 
-  const statusText = botThinking
-    ? 'Opponent is thinking…'
-    : inCheck
-      ? 'Check!'
-      : `${play.turn === 'w' ? 'White' : 'Black'} to move`;
+  const statusText = reviewing
+    ? ply === 0
+      ? 'Starting position'
+      : `Move ${Math.ceil(ply / 2)}${ply % 2 ? '.' : '…'} — reviewing`
+    : botThinking
+      ? 'Opponent is thinking…'
+      : inCheck
+        ? 'Check!'
+        : `${play.turn === 'w' ? 'White' : 'Black'} to move`;
 
   return (
     <div className="play">
@@ -147,7 +181,7 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
           color={topColor}
           config={config}
           clockMs={state.clock[topColor]}
-          active={play.turn === topColor}
+          active={activeColor === topColor}
           captured={captured[topColor]}
           advantage={topColor === 'w' ? material : -material}
         />
@@ -169,45 +203,109 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
           color={bottomColor}
           config={config}
           clockMs={state.clock[bottomColor]}
-          active={play.turn === bottomColor}
+          active={activeColor === bottomColor}
           captured={captured[bottomColor]}
           advantage={bottomColor === 'w' ? material : -material}
         />
+
+        {reviewing && (
+          <ReviewBar
+            ply={ply}
+            total={totalPlies}
+            autoplay={autoplay}
+            onGoto={(p) => dispatch({ type: 'REVIEW_GOTO', ply: p })}
+            onToggleAutoplay={() => setAutoplay((a) => !a)}
+          />
+        )}
       </div>
 
       <aside className="panel">
         <div className="panel-status">
-          <span className={`status-dot ${play.turn === 'w' ? 'white' : 'black'} ${inCheck ? 'check' : ''}`} />
+          <span className={`status-dot ${displayTurn === 'w' ? 'white' : 'black'} ${inCheck ? 'check' : ''}`} />
           {statusText}
         </div>
 
-        <button
-          className={`hint-toggle ${config.hints ? 'on' : ''}`}
-          onClick={() => dispatch({ type: 'TOGGLE_HINTS' })}
-          title="Mark moved enemy pieces with the types they could be"
-        >
-          💡 Deduction hints: <strong>{config.hints ? 'On' : 'Off'}</strong>
-        </button>
-
-        <MoveList history={play.history} />
-
-        <div className="panel-controls">
-          {config.mode === 'pass' && (
-            <button className="btn" onClick={() => dispatch({ type: 'DRAW' })}>
-              ½ Draw
-            </button>
-          )}
+        {state.phase === 'play' && (
           <button
-            className="btn danger"
-            onClick={() => dispatch({ type: 'RESIGN', color: myColor })}
+            className={`hint-toggle ${config.hints ? 'on' : ''}`}
+            onClick={() => dispatch({ type: 'TOGGLE_HINTS' })}
+            title="Mark moved enemy pieces with the types they could be"
           >
-            Resign
+            💡 Deduction hints: <strong>{config.hints ? 'On' : 'Off'}</strong>
           </button>
-          <button className="btn" onClick={() => dispatch({ type: 'NEW_GAME' })}>
-            Exit
-          </button>
-        </div>
+        )}
+
+        <MoveList
+          history={play.history}
+          activePly={reviewing ? ply : -1}
+          onGoto={reviewing ? (p) => dispatch({ type: 'REVIEW_GOTO', ply: p }) : undefined}
+        />
+
+        {reviewing ? (
+          <div className="panel-controls">
+            <button className="btn" onClick={() => dispatch({ type: 'REVIEW_EXIT' })}>
+              Result
+            </button>
+            <button className="btn" onClick={() => dispatch({ type: 'REMATCH' })}>
+              Rematch
+            </button>
+            <button className="btn" onClick={() => dispatch({ type: 'NEW_GAME' })}>
+              Exit
+            </button>
+          </div>
+        ) : (
+          <div className="panel-controls">
+            {config.mode === 'pass' && (
+              <button className="btn" onClick={() => dispatch({ type: 'DRAW' })}>
+                ½ Draw
+              </button>
+            )}
+            <button className="btn danger" onClick={() => dispatch({ type: 'RESIGN', color: myColor })}>
+              Resign
+            </button>
+            <button className="btn" onClick={() => dispatch({ type: 'NEW_GAME' })}>
+              Exit
+            </button>
+          </div>
+        )}
       </aside>
+    </div>
+  );
+}
+
+function ReviewBar({
+  ply,
+  total,
+  autoplay,
+  onGoto,
+  onToggleAutoplay,
+}: {
+  ply: number;
+  total: number;
+  autoplay: boolean;
+  onGoto: (ply: number) => void;
+  onToggleAutoplay: () => void;
+}) {
+  return (
+    <div className="review-bar">
+      <button className="rev-btn" disabled={ply <= 0} onClick={() => onGoto(0)} title="Start" aria-label="Start">
+        ⏮
+      </button>
+      <button className="rev-btn" disabled={ply <= 0} onClick={() => onGoto(ply - 1)} title="Previous" aria-label="Previous">
+        ‹
+      </button>
+      <button className="rev-btn play" onClick={onToggleAutoplay} title="Play / pause" aria-label="Play or pause">
+        {autoplay ? '⏸' : '▶'}
+      </button>
+      <button className="rev-btn" disabled={ply >= total} onClick={() => onGoto(ply + 1)} title="Next" aria-label="Next">
+        ›
+      </button>
+      <button className="rev-btn" disabled={ply >= total} onClick={() => onGoto(total)} title="End" aria-label="End">
+        ⏭
+      </button>
+      <span className="review-count">
+        {ply} / {total}
+      </span>
     </div>
   );
 }
@@ -245,32 +343,69 @@ function PlayerBar({
           {advantage > 0 && <span className="advantage">+{advantage}</span>}
         </span>
       </div>
-      <div className={`clock ${active ? 'active' : ''} ${low ? 'low' : ''}`}>
-        {formatClock(clockMs)}
-      </div>
+      <div className={`clock ${active ? 'active' : ''} ${low ? 'low' : ''}`}>{formatClock(clockMs)}</div>
     </div>
   );
 }
 
-function MoveList({ history }: { history: Move[] }) {
-  const rows: { n: number; w?: Move; b?: Move }[] = [];
+function MoveList({
+  history,
+  activePly,
+  onGoto,
+}: {
+  history: Move[];
+  activePly: number;
+  onGoto?: (ply: number) => void;
+}) {
+  interface Row {
+    n: number;
+    w?: Move;
+    wi?: number;
+    b?: Move;
+    bi?: number;
+  }
+  const rows: Row[] = [];
   history.forEach((m, i) => {
     const row = Math.floor(i / 2);
     if (!rows[row]) rows[row] = { n: row + 1 };
-    if (i % 2 === 0) rows[row].w = m;
-    else rows[row].b = m;
+    if (i % 2 === 0) {
+      rows[row].w = m;
+      rows[row].wi = i;
+    } else {
+      rows[row].b = m;
+      rows[row].bi = i;
+    }
   });
+
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = bodyRef.current?.querySelector('.move-cell.current');
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [activePly]);
+
+  const cell = (m: Move | undefined, index: number | undefined) => {
+    if (!m || index == null) return <span className="move-cell" />;
+    const ply = index + 1;
+    return (
+      <span
+        className={`move-cell ${onGoto ? 'clickable' : ''} ${activePly === ply ? 'current' : ''}`}
+        onClick={onGoto ? () => onGoto(ply) : undefined}
+      >
+        {notate(m)}
+      </span>
+    );
+  };
 
   return (
     <div className="move-list">
       <div className="move-list-head">Moves</div>
-      <div className="move-list-body">
+      <div className="move-list-body" ref={bodyRef}>
         {rows.length === 0 && <div className="move-empty">No moves yet.</div>}
         {rows.map((r) => (
           <div className="move-row" key={r.n}>
             <span className="move-num">{r.n}.</span>
-            <span className="move-cell">{r.w ? notate(r.w) : ''}</span>
-            <span className="move-cell">{r.b ? notate(r.b) : ''}</span>
+            {cell(r.w, r.wi)}
+            {cell(r.b, r.bi)}
           </div>
         ))}
       </div>
