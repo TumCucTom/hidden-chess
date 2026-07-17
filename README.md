@@ -70,6 +70,18 @@ can start.
 - **Pass & Play** — two players share one device. A privacy "pass the device" screen
   hides each player's secret information during handoffs, and the board flips to the
   player on move.
+- **Online (P2P)** — play a friend on another device. One of you picks **Online → Create
+  game** to get a short code; the other enters it under **Online → Join**. The link is
+  peer-to-peer over WebRTC — PeerJS's public broker handles matchmaking, so there's no
+  server of ours, but it does need a normal internet connection. It's a friendly,
+  trust-based link (each browser holds the full game and hides the opponent's types in the
+  UI), which is perfect for playing with a friend.
+
+### Deduction hints (optional)
+
+Turn on **Deduction hints** — from the menu, or the toggle in the play panel — and every
+enemy piece that has *moved* is tagged with the set of types it could still be, narrowing
+as it moves. It's a training-wheels view of the exact inference the computer uses.
 
 ## Running it
 
@@ -112,7 +124,9 @@ src/
     engine.test.ts   # assertion-based smoke tests
   game/
     state.ts         # top-level state machine (menu → setup → play → over)
-    useGame.ts       # React hook wiring the clock + computer opponent
+    useGame.ts       # React hook wiring the clock, computer, and p2p connection
+    net.ts           # WebRTC (PeerJS) transport for online play
+    p2p.test.ts      # simulates two clients to verify the sync protocol
   components/         # UI: Menu, SetupView, PlayView, HandoffView, GameOverView, Piece…
   assets/pieces/      # bundled Cburnett SVG piece set (see CREDITS.md)
   styles/index.css    # the chess.com-inspired theme

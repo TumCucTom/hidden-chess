@@ -51,7 +51,7 @@ export interface Move {
 /** The two ways a game can be set up. */
 export type Variant = '960' | 'full';
 
-export type Mode = 'pass' | 'computer';
+export type Mode = 'pass' | 'computer' | 'p2p';
 
 /** Computer strength (search breadth/depth + setup effort). */
 export type Difficulty = 'casual' | 'balanced' | 'sharp';

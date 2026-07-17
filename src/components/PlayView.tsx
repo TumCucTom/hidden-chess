@@ -34,10 +34,15 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
   const botColor: Color | null = config.mode === 'computer' ? (config.humanColor === 'w' ? 'b' : 'w') : null;
   const botThinking = botColor != null && play.turn === botColor && state.phase === 'play';
 
-  const canInteract =
-    state.phase === 'play' &&
-    !promo &&
-    (config.mode === 'pass' || play.turn === config.humanColor);
+  // The colour this device controls (in pass mode, always the side to move).
+  const myColor: Color =
+    config.mode === 'computer'
+      ? config.humanColor
+      : config.mode === 'p2p'
+        ? config.localColor ?? 'w'
+        : play.turn;
+
+  const canInteract = state.phase === 'play' && !promo && play.turn === myColor;
 
   const targets = useMemo<Move[]>(
     () => (selected != null ? legalMoves(play, selected) : []),
@@ -194,10 +199,7 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
           )}
           <button
             className="btn danger"
-            onClick={() => {
-              const who = config.mode === 'computer' ? config.humanColor : play.turn;
-              dispatch({ type: 'RESIGN', color: who });
-            }}
+            onClick={() => dispatch({ type: 'RESIGN', color: myColor })}
           >
             Resign
           </button>

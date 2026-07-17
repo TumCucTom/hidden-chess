@@ -176,7 +176,7 @@ button { font-family: inherit; cursor: pointer; }
 .hint { margin: -4px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.4; }
 .hint code, code { background: var(--panel-2); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
 
-.option-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.option-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .option-btn {
   text-align: left; background: var(--panel-2); color: var(--text);
   border: 2px solid var(--line); border-radius: var(--radius);
@@ -222,6 +222,35 @@ button { font-family: inherit; cursor: pointer; }
 }
 .hint-toggle strong { color: var(--text); }
 .hint-toggle.on { border-color: var(--green); background: rgba(129,182,76,.12); color: var(--text); }
+
+/* Online (p2p) menu block */
+.p2p-menu { margin-top: 12px; }
+.p2p-menu .hint { margin: 0 0 10px; }
+.p2p-join { display: flex; gap: 8px; }
+.code-input {
+  flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--text); font-size: 18px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase;
+  padding: 10px 12px;
+}
+.code-input:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+.p2p-join .btn { white-space: nowrap; }
+
+/* Lobby / waiting cards */
+.lobby-card { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 420px; }
+.lobby-card h2, .lobby-card p { margin: 0; }
+.lobby-code {
+  display: block; margin: 6px 0 6px; font-size: clamp(30px, 8vw, 44px); font-weight: 900; letter-spacing: 8px;
+  color: var(--green-hi); background: var(--panel-2); border: 1px dashed #55514a; border-radius: 12px;
+  padding: 14px 20px 14px 24px; user-select: all;
+}
+.lobby-error { color: #ff8078; }
+.lobby-spinner {
+  width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--line);
+  border-top-color: var(--green-hi); animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.btn.ghost:hover { background: var(--panel-2); }
 
 .tc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .tc-btn {

@@ -36,9 +36,11 @@ export interface GameConfig {
   difficulty: Difficulty;
   /** Show deduction hints: mark moved opponent pieces with their possible types. */
   hints: boolean;
+  /** In p2p mode, the colour this device controls. */
+  localColor?: Color;
 }
 
-export type Phase = 'menu' | 'setup' | 'handoff' | 'play' | 'over';
+export type Phase = 'menu' | 'setup' | 'handoff' | 'waiting' | 'play' | 'over';
 
 export interface GameState {
   phase: Phase;
@@ -70,6 +72,7 @@ export type Action =
   | { type: 'SETUP_CLEAR' }
   | { type: 'SETUP_SUBMIT' }
   | { type: 'HANDOFF_CONTINUE' }
+  | { type: 'P2P_REMOTE_SETUP'; color: Color; placement: Record<number, PieceType> }
   | { type: 'MOVE'; move: Move }
   | { type: 'RESIGN'; color: Color }
   | { type: 'DRAW' }
@@ -129,6 +132,9 @@ function initSetupFields(config: GameConfig, gameId: number): GameState {
     placements[bot] = smartPlacement(bot, config.variant, DIFFICULTY[config.difficulty].setupCandidates);
     setupDone[bot] = true;
     setupColor = config.humanColor;
+  } else if (config.mode === 'p2p') {
+    // Each device designs only its own colour; the opponent's arrives over the wire.
+    setupColor = config.localColor ?? 'w';
   }
 
   return {
@@ -174,6 +180,11 @@ function submitSetup(state: GameState): GameState {
 
   if (config.mode === 'computer') {
     return beginPlay(next);
+  }
+
+  if (config.mode === 'p2p') {
+    // Wait for the opponent's setup to arrive (or start if it already has).
+    return setupDone[other(color)] ? beginPlay(next) : { ...next, phase: 'waiting' };
   }
 
   // pass mode
@@ -294,6 +305,15 @@ export function reducer(state: GameState, action: Action): GameState {
       return { ...state, phase: target, handoffTo: null, afterHandoff: null };
     }
 
+    case 'P2P_REMOTE_SETUP': {
+      // The opponent's army has arrived. Record it; start once both are ready.
+      if (state.phase !== 'setup' && state.phase !== 'waiting') return state;
+      const placements = { ...state.placements, [action.color]: action.placement };
+      const setupDone = { ...state.setupDone, [action.color]: true };
+      const next = { ...state, placements, setupDone };
+      return setupDone.w && setupDone.b ? beginPlay(next) : next;
+    }
+
     case 'MOVE':
       if (state.phase !== 'play' || !state.play) return state;
       return applyMove(state, action.move);
@@ -371,8 +391,9 @@ function tick(state: GameState, elapsed: number): GameState {
 
 /** Which colour's pieces the person currently at the device should see truly. */
 export function currentViewer(state: GameState): Color {
-  if (state.phase === 'over') return state.play?.turn ?? 'w';
   if (state.config?.mode === 'computer') return state.config.humanColor;
+  if (state.config?.mode === 'p2p') return state.config.localColor ?? 'w';
+  if (state.phase === 'over') return state.play?.turn ?? 'w';
   if (state.phase === 'setup') return state.setupColor;
   if (state.phase === 'handoff') return state.handoffTo ?? 'w';
   return state.play?.turn ?? 'w';
@@ -381,6 +402,7 @@ export function currentViewer(state: GameState): Color {
 /** Board orientation (which colour sits at the bottom). */
 export function orientation(state: GameState): Color {
   if (state.config?.mode === 'computer') return state.config.humanColor;
+  if (state.config?.mode === 'p2p') return state.config.localColor ?? 'w';
   if (state.phase === 'setup') return state.setupColor;
   if (state.phase === 'handoff') return state.handoffTo ?? 'w';
   if (state.play) return state.play.turn;

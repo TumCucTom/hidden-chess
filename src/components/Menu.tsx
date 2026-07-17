@@ -52,14 +52,17 @@ function sameTC(a: TimeControl, b: TimeControl): boolean {
 
 interface MenuProps {
   onStart: (config: GameConfig) => void;
+  onHost: (config: GameConfig) => void;
+  onJoin: (code: string) => void;
 }
 
-export function Menu({ onStart }: MenuProps) {
+export function Menu({ onStart, onHost, onJoin }: MenuProps) {
   const [mode, setMode] = useState<Mode>('computer');
   const [humanColor, setHumanColor] = useState<Color | 'random'>('w');
   const [difficulty, setDifficulty] = useState<Difficulty>('balanced');
   const [variant, setVariant] = useState<Variant>('960');
   const [hints, setHints] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
   const [tc, setTc] = useState<TimeControl>(PRESETS[3].tc);
   const [customOpen, setCustomOpen] = useState(false);
   const [unlimited, setUnlimited] = useState(false);
@@ -75,6 +78,10 @@ export function Menu({ onStart }: MenuProps) {
 
   const start = () => {
     onStart({ mode, variant, time: activeTc, humanColor: resolvedColor, difficulty, hints });
+  };
+
+  const hostP2P = () => {
+    onHost({ mode: 'p2p', variant, time: activeTc, humanColor: 'w', difficulty, hints });
   };
 
   return (
@@ -99,6 +106,10 @@ export function Menu({ onStart }: MenuProps) {
           <OptionButton active={mode === 'pass'} onClick={() => setMode('pass')}>
             <strong>Pass &amp; Play</strong>
             <span>Two players, one device</span>
+          </OptionButton>
+          <OptionButton active={mode === 'p2p'} onClick={() => setMode('p2p')}>
+            <strong>Online</strong>
+            <span>Play a friend by sharing a code</span>
           </OptionButton>
         </div>
         {mode === 'computer' && (
@@ -133,6 +144,31 @@ export function Menu({ onStart }: MenuProps) {
               </div>
             </div>
           </>
+        )}
+        {mode === 'p2p' && (
+          <div className="p2p-menu">
+            <p className="hint">
+              Choose your setup style and time control below, then <strong>Create game</strong> to
+              get a code to share — you'll play White. Already have a friend's code? Join here:
+            </p>
+            <div className="p2p-join">
+              <input
+                className="code-input"
+                placeholder="Enter code…"
+                value={joinCode}
+                maxLength={8}
+                autoCapitalize="characters"
+                spellCheck={false}
+                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && joinCode.trim()) onJoin(joinCode);
+                }}
+              />
+              <button className="btn" disabled={!joinCode.trim()} onClick={() => onJoin(joinCode)}>
+                Join game
+              </button>
+            </div>
+          </div>
         )}
       </section>
 
@@ -233,8 +269,9 @@ export function Menu({ onStart }: MenuProps) {
         </label>
       </section>
 
-      <button className="start-btn" onClick={start}>
-        Start Game <span className="start-tc">{formatTC(activeTc)}</span>
+      <button className="start-btn" onClick={mode === 'p2p' ? hostP2P : start}>
+        {mode === 'p2p' ? 'Create game' : 'Start Game'}{' '}
+        <span className="start-tc">{formatTC(activeTc)}</span>
       </button>
 
       <footer className="menu-foot">
