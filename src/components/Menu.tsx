@@ -59,6 +59,7 @@ export function Menu({ onStart }: MenuProps) {
   const [humanColor, setHumanColor] = useState<Color | 'random'>('w');
   const [difficulty, setDifficulty] = useState<Difficulty>('balanced');
   const [variant, setVariant] = useState<Variant>('960');
+  const [hints, setHints] = useState(false);
   const [tc, setTc] = useState<TimeControl>(PRESETS[3].tc);
   const [customOpen, setCustomOpen] = useState(false);
   const [unlimited, setUnlimited] = useState(false);
@@ -73,7 +74,7 @@ export function Menu({ onStart }: MenuProps) {
     humanColor === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : humanColor;
 
   const start = () => {
-    onStart({ mode, variant, time: activeTc, humanColor: resolvedColor, difficulty });
+    onStart({ mode, variant, time: activeTc, humanColor: resolvedColor, difficulty, hints });
   };
 
   return (
@@ -217,6 +218,19 @@ export function Menu({ onStart }: MenuProps) {
             />
           </div>
         )}
+      </section>
+
+      <section className="menu-card">
+        <label className="toggle">
+          <input type="checkbox" checked={hints} onChange={(e) => setHints(e.target.checked)} />
+          <span className="toggle-track" aria-hidden>
+            <span className="toggle-thumb" />
+          </span>
+          <span className="toggle-text">
+            <strong>Deduction hints</strong>
+            <span>Mark each enemy piece that has moved with the types it could still be. You can also toggle this mid-game.</span>
+          </span>
+        </label>
       </section>
 
       <button className="start-btn" onClick={start}>

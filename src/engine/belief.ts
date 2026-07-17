@@ -32,6 +32,8 @@ export interface PieceBelief {
   square: number;
   /** Types this piece could still be (non-empty). */
   allowed: PieceType[];
+  /** Whether this piece has moved at least once (has an observed trajectory). */
+  moved: boolean;
 }
 
 export interface Belief {
@@ -165,7 +167,7 @@ export function inferBelief(state: PlayState, hidden: Color, variant: Variant): 
 
     // Robustness: never return an empty set (fall back to the army pool).
     if (allowed.length === 0) allowed = ALL_TYPES.filter((t) => counts[t] > 0);
-    return { square, allowed };
+    return { square, allowed, moved: tracks.has(square) };
   });
 
   return { pieces, counts };

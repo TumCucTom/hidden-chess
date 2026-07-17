@@ -4,6 +4,7 @@ import type { GameState, Action } from '../game/state';
 import { currentViewer, orientation, allRevealed } from '../game/state';
 import { squareName } from '../engine/board';
 import { legalMoves, isInCheck, findKing } from '../engine/moves';
+import { inferBelief } from '../engine/belief';
 import { Piece } from './Piece';
 import { BoardGrid, type SquareDeco } from './BoardGrid';
 import { formatClock } from './format';
@@ -46,6 +47,17 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
 
   const inCheck = isInCheck(play.board, play.turn);
   const checkSquare = inCheck ? findKing(play.board, play.turn) : -1;
+
+  // Deduction hints: for each enemy piece that has moved, the types it could be.
+  const opponent: Color = viewer === 'w' ? 'b' : 'w';
+  const hintMap = useMemo(() => {
+    const m = new Map<number, PieceType[]>();
+    if (!config.hints || revealed) return m;
+    for (const pc of inferBelief(play, opponent, config.variant).pieces) {
+      if (pc.moved) m.set(pc.square, pc.allowed);
+    }
+    return m;
+  }, [config.hints, revealed, play, opponent, config.variant]);
 
   const resetSelection = () => {
     setSelected(null);
@@ -100,7 +112,14 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
     const piece = play.board[sq];
     if (!piece) return null;
     const showReal = revealed || piece.color === viewer;
-    return <Piece color={piece.color} type={piece.type} hidden={!showReal} />;
+    if (showReal) return <Piece color={piece.color} type={piece.type} />;
+    const hint = hintMap.get(sq);
+    return (
+      <>
+        <Piece color={piece.color} type={piece.type} hidden />
+        {hint && <HintBadge types={hint} />}
+      </>
+    );
   };
 
   // Captured material (revealed). White's captures are black pieces, etc.
@@ -156,6 +175,14 @@ export function PlayView({ state, dispatch }: PlayViewProps) {
           <span className={`status-dot ${play.turn === 'w' ? 'white' : 'black'} ${inCheck ? 'check' : ''}`} />
           {statusText}
         </div>
+
+        <button
+          className={`hint-toggle ${config.hints ? 'on' : ''}`}
+          onClick={() => dispatch({ type: 'TOGGLE_HINTS' })}
+          title="Mark moved enemy pieces with the types they could be"
+        >
+          💡 Deduction hints: <strong>{config.hints ? 'On' : 'Off'}</strong>
+        </button>
 
         <MoveList history={play.history} />
 
@@ -255,6 +282,16 @@ function notate(m: Move): string {
   const promo = m.promotion ? '=?' : '';
   const suffix = m.givesMate ? '#' : m.givesCheck ? '+' : '';
   return `${squareName(m.from)}${sep}${squareName(m.to)}${promo}${suffix}`;
+}
+
+// Order used when listing a piece's possible identities (strongest first).
+const HINT_ORDER: PieceType[] = ['k', 'q', 'r', 'b', 'n', 'p'];
+
+function HintBadge({ types }: { types: PieceType[] }) {
+  const label = HINT_ORDER.filter((t) => types.includes(t))
+    .map((t) => t.toUpperCase())
+    .join('');
+  return <span className="hint-badge">{label}</span>;
 }
 
 function PromotionDialog({

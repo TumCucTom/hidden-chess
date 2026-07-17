@@ -216,8 +216,8 @@ function fresh(board = emptyBoard(), turn: 'w' | 'b' = 'w'): PlayState {
 {
   const belief: Belief = {
     pieces: [
-      { square: 10, allowed: ['n'] },
-      { square: 11, allowed: ['n', 'b'] },
+      { square: 10, allowed: ['n'], moved: true },
+      { square: 11, allowed: ['n', 'b'], moved: true },
     ],
     counts: { k: 0, q: 0, r: 0, b: 1, n: 2, p: 0 },
   };

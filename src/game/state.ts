@@ -34,6 +34,8 @@ export interface GameConfig {
   humanColor: Color;
   /** Computer strength. Only meaningful in computer mode. */
   difficulty: Difficulty;
+  /** Show deduction hints: mark moved opponent pieces with their possible types. */
+  hints: boolean;
 }
 
 export type Phase = 'menu' | 'setup' | 'handoff' | 'play' | 'over';
@@ -72,6 +74,7 @@ export type Action =
   | { type: 'RESIGN'; color: Color }
   | { type: 'DRAW' }
   | { type: 'TICK'; elapsed: number }
+  | { type: 'TOGGLE_HINTS' }
   | { type: 'NEW_GAME' }
   | { type: 'REMATCH' };
 
@@ -309,6 +312,10 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case 'TICK':
       return tick(state, action.elapsed);
+
+    case 'TOGGLE_HINTS':
+      if (!state.config) return state;
+      return { ...state, config: { ...state.config, hints: !state.config.hints } };
 
     case 'NEW_GAME':
       return { ...initialState, gameId: state.gameId };

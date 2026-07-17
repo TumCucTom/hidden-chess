@@ -120,6 +120,15 @@ button { font-family: inherit; cursor: pointer; }
     rgba(232, 60, 50, .95) 0%, rgba(232, 60, 50, .55) 45%, rgba(232,60,50,0) 72%);
 }
 
+/* Deduction-hint badge on a moved enemy piece */
+.hint-badge {
+  position: absolute; z-index: 2; bottom: 1px; left: 50%; transform: translateX(-50%);
+  font-size: clamp(7px, 1.5vmin, 10px); font-weight: 800; letter-spacing: .5px;
+  line-height: 1; white-space: nowrap; padding: 1px 4px; border-radius: 6px;
+  background: rgba(18, 18, 16, .82); color: #f5d97a; pointer-events: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,.4);
+}
+
 /* Move / capture overlays (above piece) */
 .move-dot {
   position: absolute; top: 50%; left: 50%; z-index: 2;
@@ -187,6 +196,32 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600;
 }
 .pill.active { background: var(--green); color: #12260b; border-color: var(--green); }
+
+/* Toggle switch (menu) */
+.toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  flex: none; width: 44px; height: 26px; border-radius: 999px; background: var(--panel-2);
+  border: 1px solid var(--line); position: relative; transition: background .15s, border-color .15s;
+}
+.toggle-thumb {
+  position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
+  background: #cfcac1; transition: transform .15s, background .15s;
+}
+.toggle input:checked + .toggle-track { background: rgba(129,182,76,.35); border-color: var(--green); }
+.toggle input:checked + .toggle-track .toggle-thumb { transform: translateX(18px); background: var(--green-hi); }
+.toggle input:focus-visible + .toggle-track { outline: 2px solid var(--green-hi); outline-offset: 2px; }
+.toggle-text strong { display: block; font-size: 14px; }
+.toggle-text span { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+
+/* Mid-game hint toggle (play panel) */
+.hint-toggle {
+  margin: 0 12px 10px; padding: 8px 12px; border-radius: 8px; text-align: left;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+  font-size: 13px; font-weight: 600;
+}
+.hint-toggle strong { color: var(--text); }
+.hint-toggle.on { border-color: var(--green); background: rgba(129,182,76,.12); color: var(--text); }
 
 .tc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .tc-btn {
